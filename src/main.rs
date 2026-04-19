@@ -1,6 +1,7 @@
+mod assets;
+use assets::{ FRAMES, FRAME_ORDER };
 use std::io::{ self, stdout, Write as _ };
 use std::time::Duration;
-use tokio_stream::StreamExt; 
 use crossterm::{
     cursor,
     terminal,
@@ -8,16 +9,15 @@ use crossterm::{
     execute,
     ExecutableCommand as _,
 };
-
-mod assets;
-use assets::*;
+use tokio::sync::oneshot;
+use tokio_stream::StreamExt;
 
 const FPS: f64 = 8.0;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
     // Transmitter, receiver.
-    let (tx, rx) = tokio::sync::watch::channel(false);
+    let (tx, rx) = oneshot::channel();
 
     let input_handler = tokio::spawn(handle_key(tx));
     let renderer = tokio::spawn(render(rx));
@@ -28,7 +28,7 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
-async fn handle_key(tx: tokio::sync::watch::Sender<bool>) {                          
+async fn handle_key(tx: oneshot::Sender<()>) {                          
     let mut stream = EventStream::new();
     while !matches!(
         stream.next().await,
@@ -40,11 +40,11 @@ async fn handle_key(tx: tokio::sync::watch::Sender<bool>) {
         })))
     ) {}
 
-    tx.send(true)
-      .expect("No one was listening");
+    tx.send(())
+      .expect("No one was listening.");
 }
 
-async fn render(mut rx: tokio::sync::watch::Receiver<bool>) -> io::Result<()> {
+async fn render(rx: oneshot::Receiver<()>) -> io::Result<()> {
     let mut stdout = stdout();
     let delta: Duration = Duration::from_secs_f64(1.0 / FPS);
 
@@ -55,6 +55,7 @@ async fn render(mut rx: tokio::sync::watch::Receiver<bool>) -> io::Result<()> {
 
     let mut ticker = tokio::time::interval(delta);
 
+    tokio::pin!(rx);
     for &(x, y) in FRAME_ORDER.iter().cycle() {
         let frame = FRAMES[x][y];
         // TODO: see terminal::BeginSynchronizedUpdate
@@ -67,7 +68,7 @@ async fn render(mut rx: tokio::sync::watch::Receiver<bool>) -> io::Result<()> {
 
         tokio::select! {
             // Safety: we don't care if there's a transmitter or not.
-            _ = rx.changed() => break,
+            _ = &mut rx => break,
             _ = ticker.tick() => {}
         }
 
@@ -85,4 +86,3 @@ async fn render(mut rx: tokio::sync::watch::Receiver<bool>) -> io::Result<()> {
 
     Ok(())
 }
-
