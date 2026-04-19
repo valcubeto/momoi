@@ -1,12 +1,25 @@
 [package]
-name = "momoi"
+name = "momoidance"
 version = "0.1.0"
 edition = "2024"
+description = "Momoi dancing until you press anything."
+authors = ["valcubeto@proton.me"]
+categories = ["command-line-utilities"]
+keywords = ["momoi", "blue archive", "screensaver"]
+repository = "https://github.com/valcubeto/momoi"
+
+[[bin]]
+name = "momoidance"
+path = "src/main.rs"
+
+[dependencies]
+tokio-stream = "0.1.18"
 
 [dependencies.crossterm]
 version = "0.29.0"
-default-features = false
+features = ["event-stream"]
 
 [dependencies.tokio]
 version = "1.52.1"
 default-features = false
+features = ["full"]
